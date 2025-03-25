@@ -22,12 +22,17 @@ def load_examples(path):
 
 if __name__ == "__main__":
 
+
+
     # Select example1, example2, ....
     path = "./imgs/example1"
     # Load imgs in format {name: (img, mask)}
     images = load_examples(path)
     # Equalize light
     adjusted = equalize(images)
+
+    if not os.path.exists('./plots'):
+        os.makedirs('./plots')
 
     for key, value in adjusted.items():
         cv.imwrite(f"./plots/original_img_{key}.jpg", images[key][0])
