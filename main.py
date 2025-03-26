@@ -11,12 +11,27 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Fixes lighting in precisely aligned images (photos of a near-planar object).")
     parser.add_argument('--input-path', type=str, default="./imgs/example1", help='Path to the images directory.')
     parser.add_argument('--output-path', type=str, default="./plots", help='Path to save the adjusted images.')
-    parser.add_argument('--grid-size', type=int, default=64, help='Size of the grid for light adjustment.')
-    parser.add_argument('--mode', type=str, default="scale", choices=["scale", "affine"], help='Mode of light adjustment.')
+    parser.add_argument('--grid-size', type=int, default=32, help='Size of the grid for light adjustment.')
+    parser.add_argument('--mode', type=str, default=["scale"], nargs="+",
+                        choices=["scale", "color_scale", "bias", 'gamma'],
+                        help='Modes of light adjustment. The modes can be combined.')
     parser.add_argument('--scale-factor', type=float, default=1.0, help='Scale factor for light adjustment.')
+
+    parser.add_argument('--loss', type=str, default='mse',
+                        choices=['mse', 'l1', 'gauss_smooth', 'l1_smooth'], help='Loss function use for optimization.')
+    parser.add_argument('--num-iters', type=int, default=100, help='Number of iterations for optimization.')
+    parser.add_argument('--lr', type=float, default=0.1, help='Learning rate for optimization.')
+    parser.add_argument('--optimizer', type=str, default='LBFGS',
+                        choices=['LBFGS', 'adam'], help='Optimizer for optimization.')
+
     parser.add_argument('--log-level', type=str, default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                         help='Set the logging level.')
     args = parser.parse_args()
+
+    if args.mode is None:
+        logging.error("No mode selected. Exiting.")
+        exit(-1)
+
     logging.basicConfig(level=args.log_level)
     return args
 
@@ -58,7 +73,8 @@ def main():
 
     # Equalize light
     logging.info(f"Equalizing light in {len(images)} images")
-    adjusted = equalize(images, grid_size=args.grid_size, mode=args.mode)
+    adjusted = equalize(images, grid_size=args.grid_size, mode=args.mode,
+                        loss=args.loss, num_iters=args.num_iters, lr=args.lr, optimizer=args.optimizer)
 
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
@@ -66,8 +82,8 @@ def main():
     logging.info(f"Saving adjusted images to {args.output_path}")
     for key, value in tqdm(adjusted.items()):
         cv.imwrite(os.path.join(args.output_path, f"{key}_adjusted_img.jpg"), value[0])
-        cv.imwrite(os.path.join(args.output_path, f"mask_img_{key}.jpg"), value[1])
         cv.imwrite(os.path.join(args.output_path, f"{key}_img.jpg"), images[key][0])
+        cv.imwrite(os.path.join(args.output_path, f"mask_img_{key}.jpg"), value[1])
 
 
 if __name__ == "__main__":
