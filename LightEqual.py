@@ -4,6 +4,8 @@ import torch
 import torch.nn.functional as F
 import tqdm
 from torch import nn
+import logging
+
 
 
 class SpatialLightParams(nn.Module):
@@ -14,7 +16,7 @@ class SpatialLightParams(nn.Module):
         #############################
         # Change to be ones
         if mode == "scale":
-            self.gamma_map = nn.Parameter(torch.randn((1, 1, self.grid_H, self.grid_W)))
+            self.gamma_map = nn.Parameter(torch.ones((1, 1, self.grid_H, self.grid_W)))
         elif mode == "affine":
             self.alpha_map = nn.Parameter(torch.ones((1, 1, self.grid_H, self.grid_W)))
             self.beta_map = nn.Parameter(torch.ones((1, 1, self.grid_H, self.grid_W)))
@@ -34,7 +36,7 @@ class SpatialLightParams(nn.Module):
 
 
 
-def equalize(imgs):
+def equalize(imgs, grid_size=32, mode="scale"):
     """
     Main function that iterates over all fragments to equalize them with regards to reference
     :param
@@ -57,7 +59,7 @@ def equalize(imgs):
         # Normalize fragment
         norm_frag = img.astype(np.float32) / 255.0
         # Light optimization
-        frag_adj = spatial_light_adjustment(norm_frag, ref_norm, mask, grid_size=32, mode="scale")
+        frag_adj = spatial_light_adjustment(norm_frag, ref_norm, mask, grid_size=grid_size, mode=mode)
         # Rescale it back to 255
         frag_adj = np.asarray(frag_adj * 255.0, dtype=np.uint8)
         # Append the result
@@ -85,7 +87,7 @@ def spatial_light_adjustment(fragment, reference, mask, grid_size=16, mode="scal
 
     device = torch.cuda.current_device()
 
-    method = SpatialLightParams(grid_size=64, mode='scale')
+    method = SpatialLightParams(grid_size=grid_size, mode=mode)
     method.to(device)
     # Optimizer
     optimizer = torch.optim.LBFGS(method.parameters(), lr=lr, max_iter=num_iters)
@@ -106,6 +108,7 @@ def spatial_light_adjustment(fragment, reference, mask, grid_size=16, mode="scal
 
         # Compute loss in masked region
         loss = loss_fn(adjusted_fragment.masked_select(mask_reshaped>0), ref.masked_select(mask_reshaped>0))
+        #print('loss:', loss.item())
         loss.backward()
 
         pbar.update(1)
